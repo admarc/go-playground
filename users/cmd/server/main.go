@@ -28,7 +28,11 @@ func main() {
 	r.Use(middleware.RealIP)
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
-	r.Post("/users", uh.Create)
+
+	r.Route("/users", func(r chi.Router) {
+		r.Post("/", uh.Create)
+		r.Get("/{id}", uh.Get)
+	})
 
 	s := http.Server{
 		Addr:    ":8083",

@@ -102,3 +102,63 @@ func TestUsers_Create(t *testing.T) {
 		})
 	}
 }
+
+func TestUsers_Get(t *testing.T) {
+	type fields struct {
+		user UsersService
+	}
+	type args struct {
+		w *httptest.ResponseRecorder
+		r *http.Request
+	}
+	tests := []struct {
+		name     string
+		fields   fields
+		args     args
+		wantCode int
+		wantBody []byte
+	}{
+		{
+			name: "failure when service fails to fetch data",
+			fields: fields{
+				user: &UsersServiceMock{
+					GetFunc: func(ctx context.Context, id string) (models.User, error) {
+						return models.User{}, errors.New("User not found")
+					},
+				},
+			},
+			args: args{
+				w: httptest.NewRecorder(),
+				r: httptest.NewRequest("GET", "/uuid", nil),
+			},
+			wantCode: http.StatusNotFound,
+			wantBody: []byte("\n"),
+		},
+		{
+			name: "success",
+			fields: fields{
+				user: &UsersServiceMock{
+					GetFunc: func(ctx context.Context, id string) (models.User, error) {
+						return models.User{ID: "383673b8-bd9a-41b4-adba-79bc1abc889e", Name: "tod"}, nil
+					},
+				},
+			},
+			args: args{
+				w: httptest.NewRecorder(),
+				r: httptest.NewRequest("GET", "/uuid", nil),
+			},
+			wantCode: http.StatusOK,
+			wantBody: []byte(`{"id":"383673b8-bd9a-41b4-adba-79bc1abc889e","name":"tod"}` + "\n"),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			u := Users{
+				user: tt.fields.user,
+			}
+			u.Get(tt.args.w, tt.args.r)
+			assert.Equal(t, tt.wantCode, tt.args.w.Code)
+			assert.Equal(t, tt.args.w.Body.Bytes(), tt.wantBody)
+		})
+	}
+}

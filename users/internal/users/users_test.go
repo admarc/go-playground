@@ -88,3 +88,70 @@ func TestService_Create(t *testing.T) {
 		})
 	}
 }
+
+func TestService_Get(t *testing.T) {
+	type fields struct {
+		repo Repository
+	}
+	type args struct {
+		ctx context.Context
+		id  string
+	}
+	tests := []struct {
+		name       string
+		fields     fields
+		args       args
+		want       models.User
+		wantErr    bool
+		wantErrMsg string
+	}{
+		{
+			name: "failure - repository error",
+			fields: fields{
+				repo: &RepositoryMock{
+					GetFunc: func(ctx context.Context, id string) (models.User, error) {
+						assert.Equal(t, "383673b8-bd9a-41b4-adba-79bc1abc889e", id)
+						return models.User{}, errors.New("Failed to fetch user")
+					},
+				},
+			},
+			args: args{
+				id: "383673b8-bd9a-41b4-adba-79bc1abc889e",
+			},
+			want:       models.User{},
+			wantErr:    true,
+			wantErrMsg: "Failed to fetch user",
+		},
+		{
+			name: "success",
+			fields: fields{
+				repo: &RepositoryMock{
+					GetFunc: func(ctx context.Context, id string) (models.User, error) {
+						assert.Equal(t, "383673b8-bd9a-41b4-adba-79bc1abc889e", id)
+						return models.User{ID: "383673b8-bd9a-41b4-adba-79bc1abc889e", Name: "tod"}, nil
+					},
+				},
+			},
+			args: args{
+				id: "383673b8-bd9a-41b4-adba-79bc1abc889e",
+			},
+			want:       models.User{ID: "383673b8-bd9a-41b4-adba-79bc1abc889e", Name: "tod"},
+			wantErr:    false,
+			wantErrMsg: "",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := Service{
+				repo: tt.fields.repo,
+			}
+			got, err := s.Get(tt.args.ctx, tt.args.id)
+
+			assert.Equal(t, tt.wantErr, err != nil)
+			assert.Equal(t, tt.want, got)
+			if err != nil {
+				assert.Containsf(t, err.Error(), tt.wantErrMsg, "expected error containing %q, got %s", tt.wantErrMsg, err)
+			}
+		})
+	}
+}

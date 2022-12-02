@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/admarc/users/internal/models"
+	"github.com/go-chi/chi"
 )
 
 type CreateUserParams struct {
@@ -16,6 +17,7 @@ type CreateUserParams struct {
 //go:generate moq -rm -out users_mock.go . UsersService
 type UsersService interface {
 	Create(ctx context.Context, name string) (models.User, error)
+	Get(ctx context.Context, id string) (models.User, error)
 }
 
 type Users struct {
@@ -42,6 +44,23 @@ func (u Users) Create(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		http.Error(w, "", http.StatusInternalServerError)
+		return
+	}
+
+	if err := json.NewEncoder(w).Encode(user); err != nil {
+		http.Error(w, "", http.StatusInternalServerError)
+		return
+	}
+}
+
+func (u Users) Get(w http.ResponseWriter, r *http.Request) {
+	ctx := context.TODO()
+
+	id := chi.URLParam(r, "id")
+
+	user, err := u.user.Get(ctx, id)
+	if err != nil {
+		http.Error(w, "", http.StatusNotFound)
 		return
 	}
 

@@ -22,6 +22,9 @@ var _ Repository = &RepositoryMock{}
 //			CreateFunc: func(ctx context.Context, name string) (models.User, error) {
 //				panic("mock out the Create method")
 //			},
+//			GetFunc: func(ctx context.Context, id string) (models.User, error) {
+//				panic("mock out the Get method")
+//			},
 //		}
 //
 //		// use mockedRepository in code that requires Repository
@@ -32,6 +35,9 @@ type RepositoryMock struct {
 	// CreateFunc mocks the Create method.
 	CreateFunc func(ctx context.Context, name string) (models.User, error)
 
+	// GetFunc mocks the Get method.
+	GetFunc func(ctx context.Context, id string) (models.User, error)
+
 	// calls tracks calls to the methods.
 	calls struct {
 		// Create holds details about calls to the Create method.
@@ -41,8 +47,16 @@ type RepositoryMock struct {
 			// Name is the name argument value.
 			Name string
 		}
+		// Get holds details about calls to the Get method.
+		Get []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// ID is the id argument value.
+			ID string
+		}
 	}
 	lockCreate sync.RWMutex
+	lockGet    sync.RWMutex
 }
 
 // Create calls CreateFunc.
@@ -78,5 +92,41 @@ func (mock *RepositoryMock) CreateCalls() []struct {
 	mock.lockCreate.RLock()
 	calls = mock.calls.Create
 	mock.lockCreate.RUnlock()
+	return calls
+}
+
+// Get calls GetFunc.
+func (mock *RepositoryMock) Get(ctx context.Context, id string) (models.User, error) {
+	if mock.GetFunc == nil {
+		panic("RepositoryMock.GetFunc: method is nil but Repository.Get was just called")
+	}
+	callInfo := struct {
+		Ctx context.Context
+		ID  string
+	}{
+		Ctx: ctx,
+		ID:  id,
+	}
+	mock.lockGet.Lock()
+	mock.calls.Get = append(mock.calls.Get, callInfo)
+	mock.lockGet.Unlock()
+	return mock.GetFunc(ctx, id)
+}
+
+// GetCalls gets all the calls that were made to Get.
+// Check the length with:
+//
+//	len(mockedRepository.GetCalls())
+func (mock *RepositoryMock) GetCalls() []struct {
+	Ctx context.Context
+	ID  string
+} {
+	var calls []struct {
+		Ctx context.Context
+		ID  string
+	}
+	mock.lockGet.RLock()
+	calls = mock.calls.Get
+	mock.lockGet.RUnlock()
 	return calls
 }
