@@ -4,12 +4,13 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log"
 	"net/http"
-	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
+	"github.com/admarc/users/cmd/server/config"
 	"github.com/admarc/users/internal/handlers"
 	storageUsers "github.com/admarc/users/internal/storage/users"
 	"github.com/admarc/users/internal/users"
@@ -25,7 +26,16 @@ func main() {
 	fmt.Println("starting")
 	defer fmt.Println("shutdown")
 
-	db := getDB()
+	cfg, help, err := config.New()
+
+	if err != nil {
+		if help != "" {
+			log.Fatal(help)
+		}
+		log.Fatal(err)
+	}
+
+	db := getDB(cfg)
 
 	repo := storageUsers.NewStorage(&db)
 	us := users.NewService(repo)
@@ -48,11 +58,11 @@ func main() {
 	r.Mount("/metrics", promhttp.Handler())
 
 	s := http.Server{
-		Addr:         ":8083",
+		Addr:         cfg.HTTP.Addr,
 		Handler:      r,
-		ReadTimeout:  1 * time.Second,
-		WriteTimeout: 1 * time.Second,
-		IdleTimeout:  2 * time.Second,
+		ReadTimeout:  cfg.HTTP.ReadTimeout,
+		WriteTimeout: cfg.HTTP.WriteTimeout,
+		IdleTimeout:  cfg.HTTP.IdleTimeout,
 	}
 
 	go func() {
@@ -65,31 +75,23 @@ func main() {
 	<-ctx.Done()
 	fmt.Println("signal received")
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	ctx, cancel := context.WithTimeout(context.Background(), cfg.GracefulTimeout)
 	defer cancel()
 
 	fmt.Println("shutting down")
 	s.Shutdown(ctx)
 }
 
-func getDB() sql.DB {
-	const dbPath = "./users.db"
-
-	if _, err := os.Stat(dbPath); err != nil {
-		if _, err = os.Create(dbPath); err != nil {
-			panic(err)
-		}
-	}
-
-	db, err := sql.Open("sqlite3", dbPath)
-	db.SetMaxIdleConns(1)
-	db.SetMaxOpenConns(10)
-	db.SetConnMaxLifetime(time.Second * 5)
-	db.SetConnMaxIdleTime(time.Second * 1)
-
+func getDB(cfg config.Config) sql.DB {
+	db, err := sql.Open("sqlite3", cfg.DB.DSN)
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
+	defer db.Close()
+	db.SetMaxIdleConns(cfg.DB.MaxIdleConns)
+	db.SetMaxOpenConns(cfg.DB.MaxOpenConns)
+	db.SetConnMaxLifetime(cfg.DB.ConnMaxLifetime)
+	db.SetConnMaxIdleTime(cfg.DB.ConnMaxIdleTime)
 
 	return *db
 }
