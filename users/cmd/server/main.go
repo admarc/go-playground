@@ -1,10 +1,14 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/admarc/users/internal/handlers"
 	storageUsers "github.com/admarc/users/internal/storage/users"
@@ -32,14 +36,34 @@ func main() {
 	r.Route("/users", func(r chi.Router) {
 		r.Post("/", uh.Create)
 		r.Get("/{id}", uh.Get)
+		r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
+			time.Sleep(15 * time.Second)
+		})
 	})
 
 	s := http.Server{
-		Addr:    ":8083",
-		Handler: r,
+		Addr:         ":8083",
+		Handler:      r,
+		ReadTimeout:  1 * time.Second,
+		WriteTimeout: 1 * time.Second,
+		IdleTimeout:  2 * time.Second,
 	}
 
-	fmt.Println(s.ListenAndServe())
+	go func() {
+		fmt.Println(s.ListenAndServe())
+	}()
+
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+	defer stop()
+
+	<-ctx.Done()
+	fmt.Println("signal received")
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+
+	fmt.Println("shutting down")
+	s.Shutdown(ctx)
 }
 
 func getDB() sql.DB {
@@ -52,14 +76,10 @@ func getDB() sql.DB {
 	}
 
 	db, err := sql.Open("sqlite3", dbPath)
-
-	if err != nil {
-		panic(err)
-	}
-
-	createDB := "CREATE TABLE IF NOT EXISTS `users` (`id` VARCHAR(36) PRIMARY KEY,`name` VARCHAR(64) NULL);"
-
-	_, err = db.Exec(createDB)
+	db.SetMaxIdleConns(1)
+	db.SetMaxOpenConns(10)
+	db.SetConnMaxLifetime(time.Second * 5)
+	db.SetConnMaxIdleTime(time.Second * 1)
 
 	if err != nil {
 		panic(err)
