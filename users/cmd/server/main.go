@@ -13,9 +13,12 @@ import (
 	"github.com/admarc/users/internal/handlers"
 	storageUsers "github.com/admarc/users/internal/storage/users"
 	"github.com/admarc/users/internal/users"
+	"github.com/admarc/users/pkg/dbcollector"
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
 	_ "github.com/mattn/go-sqlite3"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 func main() {
@@ -40,6 +43,9 @@ func main() {
 			time.Sleep(15 * time.Second)
 		})
 	})
+
+	prometheus.MustRegister(dbcollector.NewSQLDatabaseCollector("general", "main", "sqlite", &db))
+	r.Mount("/metrics", promhttp.Handler())
 
 	s := http.Server{
 		Addr:         ":8083",
