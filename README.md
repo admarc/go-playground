@@ -1,2 +1,2 @@
-# Golang playground
+# Go playground
 
